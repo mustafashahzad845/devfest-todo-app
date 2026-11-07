@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net - Default Deny Catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Security Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprint for Task Entity
+    function isValidTask(data) {
+      return data.userId == request.auth.uid
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 256
+        && data.completed is bool
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 2000))
+        && (!('priority' in data) || (data.priority in ['low', 'medium', 'high', 'urgent']))
+        && (!('category' in data) || (data.category is string && data.category.size() <= 64))
+        && (!('dueDate' in data) || data.dueDate == null || (data.dueDate is string && data.dueDate.size() <= 64))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint for User Profile Entity
+    function isValidUserProfile(data) {
+      return data.userId == request.auth.uid
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 256
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 128))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 1024))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Tasks Collection: Strictly isolated by owner userId
+    match /tasks/{taskId} {
+      // Secure List Query: Rule itself forces evaluation of resource.data
+      allow list: if isVerifiedUser() && existing().userId == request.auth.uid;
+
+      // Single Document Read (Get)
+      allow get: if isVerifiedUser() && isValidId(taskId) && existing().userId == request.auth.uid;
+
+      // Create Task
+      allow create: if isVerifiedUser()
+        && isValidId(taskId)
+        && incoming().keys().hasAll(['userId', 'title', 'completed', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['id', 'userId', 'title', 'completed', 'description', 'priority', 'category', 'dueDate', 'createdAt', 'updatedAt'])
+        && isValidTask(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      // Update Task - Action-based with strict key checking and immutability guards
+      allow update: if isVerifiedUser()
+        && isValidId(taskId)
+        && isValidTask(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Toggle completed status
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['completed', 'updatedAt'])
+          )
+          ||
+          // Action 2: Update task content / metadata
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'description', 'completed', 'priority', 'category', 'dueDate', 'updatedAt'
+            ])
+          )
+        );
+
+      // Delete Task: Only the authenticated owner can delete
+      allow delete: if isVerifiedUser() && isValidId(taskId) && existing().userId == request.auth.uid;
+    }
+
+    // User Profiles Collection
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && request.auth.uid == userId;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && incoming().keys().hasAll(['userId', 'email', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['userId', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt']);
+
+      allow delete: if false;
+    }
+  }
+}

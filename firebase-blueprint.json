@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "Represents a to-do task item owned by an authenticated user.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique task identifier",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this task",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "description": "Title or summary of the task",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed notes or description of the task",
+          "maxLength": 2000
+        },
+        "completed": {
+          "type": "boolean",
+          "description": "Whether the task has been marked as finished"
+        },
+        "priority": {
+          "type": "string",
+          "description": "Task urgency or priority",
+          "enum": ["low", "medium", "high", "urgent"]
+        },
+        "category": {
+          "type": "string",
+          "description": "Category or tag name for grouping tasks",
+          "maxLength": 64
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "Optional ISO date string for task deadline",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Server timestamp when the task was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Server timestamp when the task was last updated"
+        }
+      },
+      "required": ["userId", "title", "completed", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information saved upon sign-in",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The Firebase Auth UID of the user",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User's display name from Google Sign-In",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "User's verified email address",
+          "maxLength": 256
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User avatar URL",
+          "maxLength": 1024
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was first recorded"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the profile was last synchronized"
+        }
+      },
+      "required": ["userId", "email", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/tasks/{taskId}": {
+      "schema": {
+        "$ref": "Task"
+      },
+      "description": "Collection of tasks isolated by owner userId"
+    },
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "UserProfile"
+      },
+      "description": "Private user profiles accessible only by the owner"
+    }
+  }
+}

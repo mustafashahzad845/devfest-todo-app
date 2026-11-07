@@ -1,0 +1,6 @@
+{
+  "name": "SyncTasks",
+  "description": "A real-time collaborative to-do list application powered by Firebase Firestore and Google Sign-In with secure user task isolation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
